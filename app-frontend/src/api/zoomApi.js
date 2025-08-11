@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Functions to communicate with backend to send requests to zoom
+// Functions to communicate with back-end to send requests to zoom
 
 const BACKEND_API_URL = 'http://localhost:3001'; // Backend Server URL
 

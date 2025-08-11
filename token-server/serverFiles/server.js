@@ -2,6 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
 import { getValidToken } from './zoomAuth.js';
+import { sendSnsNotification } from '../emailService/awsEmailService.js';
 
 const app = express();
 const port = 3001; // Backend server port
@@ -66,7 +67,7 @@ app.delete('/meetings/:meetingId', async (req, res) => {
     }
 });
 
-//Route handler - CREATE meetings
+// Route handler - CREATE meetings
 app.post('/users/me/meetings', async (req, res) => {
     const token = await getValidToken();
     if (!token) {
@@ -80,12 +81,14 @@ app.post('/users/me/meetings', async (req, res) => {
                 'Content-Type': 'application/json'
             }
         });
+        sendSnsNotification(response.data, false); //Email Notification - Create Meeting
         res.status(201).json(response.data);
     } catch (error) {
         console.error(error.response ? error.response.data : error.message);
         res.status(error.response?.status || 500).json({ error: 'Failed to create meeting' });
     }
 });
+
 
 //Route handler - UPDATE meetings
 app.patch('/meetings/:meetingId', async (req, res) => {
@@ -101,6 +104,12 @@ app.patch('/meetings/:meetingId', async (req, res) => {
                 'Content-Type': 'application/json'
             }
         });
+
+        const detailsResponse = await axios.get(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        sendSnsNotification(detailsResponse.data, true); //Email Notification - Update Meeting
+
         res.sendStatus(204);
     } catch (error) {
         console.error(error.response ? error.response.data : error.message);
