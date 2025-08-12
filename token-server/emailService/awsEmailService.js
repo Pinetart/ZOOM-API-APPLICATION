@@ -19,27 +19,11 @@ export async function sendSnsNotification(meetingDetails, isUpdate = false) {
 
     const formattedStartTime = format(new Date(meetingDetails.start_time), 'EEEE, MMMM d, yyyy \'at\' h:mm a');
 
-    const htmlContent = `
-        <html>
-        <head>
-            <style>
-                body { font-family: Arial, sans-serif; color: #333; }
-                .container { padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px; }
-                h1 { color: #0e71eb; }
-                p { line-height: 1.6; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>${isUpdate ? 'Meeting Details Updated' : 'New Meeting Scheduled'}</h1>
-                <p><strong>Topic:</strong> ${meetingDetails.topic}</p>
-                <p><strong>When:</strong> ${formattedStartTime} (${meetingDetails.timezone})</p>
-                <p><strong>Meeting ID:</strong> ${meetingDetails.id}</p>
-                <a href="${meetingDetails.join_url}">Join Meeting</a>
-            </div>
-        </body>
-        </html>
-    `; // Email body
+    const htmlContent = `${isUpdate ? 'Meeting Details Updated' : 'New Meeting Scheduled'}
+Topic: ${meetingDetails.topic}
+When: ${formattedStartTime} (${meetingDetails.timezone})
+Meeting ID: ${meetingDetails.id}
+Join Meeting: ${meetingDetails.join_url}`;
 
     const defaultMessage = `Meeting Notification: ${subject}. Join at ${meetingDetails.join_url}`;
 
@@ -52,7 +36,7 @@ export async function sendSnsNotification(meetingDetails, isUpdate = false) {
     const command = new PublishCommand({
         TopicArn: SNS_TOPIC_ARN,
         Message: messagePayload,
-        Subject: subject, 
+        Subject: subject,
         MessageStructure: 'json', // Tells SNS to parse the message as JSON
     });
 

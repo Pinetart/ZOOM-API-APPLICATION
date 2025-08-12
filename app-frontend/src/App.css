@@ -119,28 +119,18 @@ td button {
   color: #718096;
 }
 
-/* Loading and Error States */
 .loading-spinner {
-  /* Full-screen Overlay */
   position: fixed;
-  /* Position relative to the viewport */
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   background-color: rgba(255, 255, 255, 0.8);
-  /* Optional: semi-transparent white background */
   z-index: 9999;
-  /* Ensure it's on top of everything */
-
-  /* Flexbox for Centering */
   display: flex;
   flex-direction: column;
-  /* Stack the spinner and text vertically */
   justify-content: center;
-  /* Center vertically */
   align-items: center;
-  /* Center horizontally */
 }
 
 .error-message {
@@ -331,4 +321,138 @@ td button {
   font-size: 1rem;
   padding: 0;
   margin-top: 2rem;
+}
+
+td:last-child {
+  white-space: nowrap;
+  min-width: 300px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+td .btn {
+  margin-right: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 1.0rem;
+  min-width: auto;
+  white-space: nowrap;
+}
+
+td .btn:last-child {
+  margin-right: 0;
+}
+
+@media (max-width: 1024px) {
+  td:last-child {
+    min-width: 250px;
+  }
+
+  td .btn {
+    padding: 0.5rem 0.5rem;
+    font-size: 1rem;
+  }
+
+}
+
+/* --- Responsive Styles for Mobile --- */
+@media screen and (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .table-container {
+    background-color: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  table thead {
+    display: none;
+  }
+
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  tr {
+    background-color: #fff;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    padding: 1rem;
+    box-sizing: border-box;
+  }
+
+  td {
+    border: none;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0.5rem;
+    padding-bottom: 1.5rem;
+    text-align: right;
+    position: relative;
+  }
+
+  td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    font-weight: 600;
+    color: #4a5568;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  tr td:first-child {
+    padding-top: 0;
+    padding-bottom: 1.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 1rem;
+  }
+
+  tr td:first-child::before {
+    display: none;
+  }
+
+  td:last-child {
+    padding-bottom: 0;
+  }
+
+  .action-buttons {
+    text-align: right;
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .clickable-row:hover {
+    background-color: #fff;
+  }
+
+  .clickable-row td a {
+    margin: 0;
+    padding: 0;
+    display: inline;
+  }
 }
