@@ -1,7 +1,7 @@
 // src/App.js
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom'; // Import router components
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { listAllMeetings, deleteMeeting, createMeeting, updateMeeting } from './api/zoomApi';
 
 // Import Components
@@ -19,11 +19,17 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
 
+  const [isFetching, setIsFetching] = useState(false);
+
   const fetchMeetings = useCallback(async () => {
-    // Set loading to true only for the initial load
-    if (meetings.length === 0) {
-      setIsLoading(true);
+    if (isFetching) {
+      console.log("Fetch already in progress, skipping.");
+      return;
     }
+
+    setIsFetching(true);
+    setIsLoading(true); // Keep the loading spinner logic
+
     try {
       setError(null);
       const fetchedMeetings = await listAllMeetings();
@@ -32,12 +38,14 @@ function App() {
       setError(err.message || "Failed to fetch meetings.");
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
-  }, [meetings.length]); // Dependency ensures setIsLoading only runs on initial load
+  }, [isFetching]); // usecallback dependency to prevent re-render
 
   useEffect(() => {
     fetchMeetings();
-  }, [fetchMeetings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on initial component mount
 
   const handleDelete = async (meetingId) => {
     if (window.confirm("Are you sure you want to delete this meeting?")) {
@@ -51,7 +59,7 @@ function App() {
   };
 
   const handleOpenCreateModal = () => {
-    setEditingMeeting(null); 
+    setEditingMeeting(null);
     setIsModalOpen(true);
   };
 
@@ -73,15 +81,15 @@ function App() {
         await createMeeting(meetingDetails);
       }
       handleCloseModal();
-      fetchMeetings(); 
+      fetchMeetings(); // Refresh list to show changes
     } catch (err) {
       alert(`Failed to ${editingMeeting ? 'update' : 'create'} meeting.`);
     }
   };
 
-
+  // Helper component to render the dashboard with its loading/error states
   const DashboardPage = () => {
-    if (isLoading) {
+    if (isLoading && meetings.length === 0) {
       return <LoadingSpinner />;
     }
     if (error) {
@@ -90,9 +98,9 @@ function App() {
     return (
       <MeetingDashboard
         meetings={meetings}
-        onEdit={handleOpenEditModal}
-        onDelete={handleDelete}
         onCreate={handleOpenCreateModal}
+        onEdit={handleOpenEditModal} 
+        onDelete={handleDelete}     
       />
     );
   };
@@ -102,7 +110,6 @@ function App() {
       <div className="app-container">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
-
           <Route
             path="/meeting/:meetingId"
             element={<MeetingDetailPage onDelete={handleDelete} onEdit={handleOpenEditModal} />}
@@ -122,3 +129,4 @@ function App() {
 }
 
 export default App;
+
