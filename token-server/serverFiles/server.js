@@ -1,141 +1,114 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import { getValidToken } from './zoomAuth.js';
+import { injectZoomToken, getDefaultToken } from './zoomAuth.js';
 import { sendSnsNotification } from '../emailService/awsEmailService.js';
 
 const app = express();
-const port = 3001; // Backend server port
+const port = 3001;
 
 const corsOptions = {
     origin: 'http://localhost:3000',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true, // Allow cookies to be sent
-    optionsSuccessStatus: 204, // For preflight requests
+    credentials: true,
+    optionsSuccessStatus: 204,
     allowedHeaders: ["Content-Type", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Request-Headers"]
 };
 
-//Parse JSON request bodies
-app.use(express.json())
-
-// CORs module allows for browser requests to/from ZOOM from the port which App is running
 app.use(cors(corsOptions));
+app.use(express.json());
+
+// --- ROUTES ---
+
+// A simple endpoint to get the default token, if needed.
 app.get('/api/token', async (req, res) => {
-    console.log("Received request for Zoom token...");
-    const token = await getValidToken();
+    console.log("Received request for default Zoom token...");
+    const token = await getDefaultToken();
     if (token) {
         res.json({ token });
     } else {
-        res.status(500).json({ error: 'Failed to retrieve Zoom token' });
+        res.status(500).json({ error: 'Failed to retrieve default Zoom token' });
     }
 });
 
-//Route handler - LIST meetings
-app.get('/users/me/meetings', async (req, res) => {
-    const token = await getValidToken();
-    if (!token) {
-        return res.status(500).json({ error: 'Failed to retrieve Zoom token' });
-    }
-
+// For listing meetings, the middleware will use the 'default' account token
+app.get('/users/me/meetings', injectZoomToken, async (req, res) => {
     try {
-        const response = await axios.get(`https://api.zoom.us/v2/users/me/meetings`, {
-            headers: { 'Authorization': `Bearer ${token}` },
+        const response = await axios.get('https://api.zoom.us/v2/users/me/meetings', {
+            headers: { 'Authorization': `Bearer ${req.zoomToken}` }, // Use the injected token
             params: req.query
         });
         res.json(response.data);
     } catch (error) {
-        console.error(error.response ? error.response.data : error.message);
+        console.error(error.response?.data || error.message);
         res.status(error.response?.status || 500).json({ error: 'Failed to retrieve meetings' });
     }
 });
 
-//Route handler - DELETE meetings
-app.delete('/meetings/:meetingId', async (req, res) => {
-    const token = await getValidToken();
-    if (!token) {
-        return res.status(500).json({ error: 'Failed to retrieve Zoom token' });
-    }
-
-    try {
-        await axios.delete(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        res.sendStatus(204);
-    } catch (error) {
-        console.error(error.response ? error.response.data : error.message);
-        res.status(error.response?.status || 500).json({ error: 'Failed to delete meeting' });
-    }
-});
-
-// Route handler - CREATE meetings
-app.post('/users/me/meetings', async (req, res) => {
-    const token = await getValidToken();
-    if (!token) {
-        return res.status(500).json({ error: 'Failed to retrieve Zoom token' });
-    }
-
+// For creating a meeting, the middleware will select an account based on req.body.start_time
+app.post('/users/me/meetings', injectZoomToken, async (req, res) => {
     try {
         const response = await axios.post('https://api.zoom.us/v2/users/me/meetings', req.body, {
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${req.zoomToken}`, // Use the injected token
                 'Content-Type': 'application/json'
             }
         });
-        sendSnsNotification(response.data, false); //Email Notification - Create Meeting
+        sendSnsNotification(response.data, false); // Email Notification
         res.status(201).json(response.data);
     } catch (error) {
-        console.error(error.response ? error.response.data : error.message);
+        console.error(error.response?.data || error.message);
         res.status(error.response?.status || 500).json({ error: 'Failed to create meeting' });
     }
 });
 
+// All routes below that operate on a specific meetingId will use the default token.
+app.use('/meetings/:meetingId', injectZoomToken);
 
-//Route handler - UPDATE meetings
-app.patch('/meetings/:meetingId', async (req, res) => {
-    const token = await getValidToken();
-    if (!token) {
-        return res.status(500).json({ error: 'Failed to retrieve Zoom token' });
+app.get('/meetings/:meetingId', async (req, res) => {
+    try {
+        const response = await axios.get(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
+            headers: { 'Authorization': `Bearer ${req.zoomToken}` }
+        });
+        res.json(response.data);
+    } catch (error) {
+        console.error(error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({ error: 'Failed to retrieve meeting details' });
     }
+});
 
+app.patch('/meetings/:meetingId', async (req, res) => {
     try {
         await axios.patch(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, req.body, {
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${req.zoomToken}`,
                 'Content-Type': 'application/json'
             }
         });
-
+        // Refetch details to send in notification
         const detailsResponse = await axios.get(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${req.zoomToken}` }
         });
-        sendSnsNotification(detailsResponse.data, true); //Email Notification - Update Meeting
-
+        sendSnsNotification(detailsResponse.data, true); // Email Notification
         res.sendStatus(204);
     } catch (error) {
-        console.error(error.response ? error.response.data : error.message);
+        console.error(error.response?.data || error.message);
         res.status(error.response?.status || 500).json({ error: 'Failed to update meeting' });
     }
 });
 
-//Route handler - Get a single meeting meetings
-app.get('/meetings/:meetingId', async (req, res) => {
-    const token = await getValidToken();
-    if (!token) {
-        return res.status(500).json({ error: 'Failed to retrieve Zoom token' });
-    }
-
+app.delete('/meetings/:meetingId', async (req, res) => {
     try {
-        const response = await axios.get(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        await axios.delete(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
+            headers: { 'Authorization': `Bearer ${req.zoomToken}` }
         });
-        res.json(response.data);
+        res.sendStatus(204);
     } catch (error) {
-        console.error(error.response ? error.response.data : error.message);
-        const status = error.response ? error.response.status : 500;
-        res.status(status).json({ error: 'Failed to retrieve meeting details' });
+        console.error(error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({ error: 'Failed to delete meeting' });
     }
 });
 
 app.listen(port, () => {
-    console.log(`✅ backend token server listening at http://localhost:${port}`);
+    console.log(`✅ Multi-account backend server listening at http://localhost:${port}`);
 });

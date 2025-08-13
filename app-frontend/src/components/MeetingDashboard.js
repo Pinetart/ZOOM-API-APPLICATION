@@ -28,11 +28,11 @@ const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
                 <table>
                     <thead>
                         <tr>
-                            <th>Topic</th>
+                            <th style={{ minWidth: '390px' }}>Topic</th>
                             <th>Meeting ID</th>
-                            <th>Start Time</th>
+                            <th style={{ minWidth: '170px' }}>Start Time</th>
                             <th>Duration</th>
-                            <th style={{ minWidth: '300px' }}>Actions</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>

@@ -1,5 +1,3 @@
-// src/App.js
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { listAllMeetings, deleteMeeting, createMeeting, updateMeeting } from './api/zoomApi';

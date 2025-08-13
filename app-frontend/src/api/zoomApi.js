@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-// Functions to communicate with back-end to send requests to zoom
-
-const BACKEND_API_URL = 'http://localhost:3001'; // Backend Server URL
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'http://localhost:3001';
 
 export async function listAllMeetings() {
     let allMeetings = [];
@@ -47,6 +45,10 @@ export async function deleteMeeting(meetingId) {
 }
 
 export async function createMeeting(meetingDetails) {
+    if (!meetingDetails.start_time) {
+        console.warn("`createMeeting` called without a `start_time`. The backend will use the default account.");
+    }
+
     try {
         const response = await axios({
             method: 'POST',
@@ -61,6 +63,10 @@ export async function createMeeting(meetingDetails) {
 }
 
 export async function updateMeeting(meetingId, updateDetails) {
+    if (!updateDetails.start_time) {
+        console.warn("`updateMeeting` called without a `start_time`. The backend will use the default account.");
+    }
+
     try {
         await axios({
             method: 'PATCH',

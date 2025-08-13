@@ -23,6 +23,7 @@ export async function sendSnsNotification(meetingDetails, isUpdate = false) {
 Topic: ${meetingDetails.topic}
 When: ${formattedStartTime} (${meetingDetails.timezone})
 Meeting ID: ${meetingDetails.id}
+Zoom Account: ${meetingDetails.host_email}
 Join Meeting: ${meetingDetails.join_url}`;
 
     const defaultMessage = `Meeting Notification: ${subject}. Join at ${meetingDetails.join_url}`;
