@@ -81,7 +81,7 @@ function App() {
       handleCloseModal();
       fetchMeetings(); // Refresh list to show changes
     } catch (err) {
-      alert(`Failed to ${editingMeeting ? 'update' : 'create'} meeting.`);
+      alert(`Failed to ${editingMeeting ? 'update' : 'create'} meeting. There is a scheduling conflict. Another meeting is scheduled for this time. Please try scheduling another start time.`);
     }
   };
 
@@ -97,8 +97,8 @@ function App() {
       <MeetingDashboard
         meetings={meetings}
         onCreate={handleOpenCreateModal}
-        onEdit={handleOpenEditModal} 
-        onDelete={handleDelete}     
+        onEdit={handleOpenEditModal}
+        onDelete={handleDelete}
       />
     );
   };

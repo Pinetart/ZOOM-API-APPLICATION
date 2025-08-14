@@ -3,21 +3,23 @@ import axios from 'axios';
 
 dotenv.config();
 
+export const accountKeys = ['default', 'secondary', 'tertiary'];
+
 const zoomAccounts = {
     default: {
-        id: process.env.ZOOM_ACCOUNT_1_ID,
-        clientId: process.env.ZOOM_ACCOUNT_1_CLIENT_ID,
-        clientSecret: process.env.ZOOM_ACCOUNT_1_CLIENT_SECRET,
+        id: process.env.ZOOM_ACCOUNT_DEFAULT_ID,
+        clientId: process.env.ZOOM_ACCOUNT_DEFAULT_CLIENT_ID,
+        clientSecret: process.env.ZOOM_ACCOUNT_DEFAULT_CLIENT_SECRET,
     },
-    afterHours: {
-        id: process.env.ZOOM_ACCOUNT_2_ID,
-        clientId: process.env.ZOOM_ACCOUNT_2_CLIENT_ID,
-        clientSecret: process.env.ZOOM_ACCOUNT_2_CLIENT_SECRET,
+    secondary: {
+        id: process.env.ZOOM_ACCOUNT_SECONDARY_ID,
+        clientId: process.env.ZOOM_ACCOUNT_SECONDARY_CLIENT_ID,
+        clientSecret: process.env.ZOOM_ACCOUNT_SECONDARY_CLIENT_SECRET,
     },
-    weekend: {
-        id: process.env.ZOOM_ACCOUNT_3_ID,
-        clientId: process.env.ZOOM_ACCOUNT_3_CLIENT_ID,
-        clientSecret: process.env.ZOOM_ACCOUNT_3_CLIENT_SECRET,
+    tertiary: {
+        id: process.env.ZOOM_ACCOUNT_TERTIARY_ID,
+        clientId: process.env.ZOOM_ACCOUNT_TERTIARY_CLIENT_ID,
+        clientSecret: process.env.ZOOM_ACCOUNT_TERTIARY_CLIENT_SECRET,
     }
 };
 
@@ -65,12 +67,12 @@ async function fetchNewToken(accountKey, retryCount = 0) {
         } else {
             console.error(`❌ Error getting token for [${accountKey}]:`, error.response ? error.response.data : error.message);
         }
-        tokenCache[accountKey] = null; 
+        tokenCache[accountKey] = null;
         return null;
     }
 }
 
-async function getAuthTokenForAccount(accountKey) {
+export async function getAuthTokenForAccount(accountKey) {
     const cachedEntry = tokenCache[accountKey];
     if (cachedEntry && Date.now() < cachedEntry.expiresAt) {
         console.log(`Returning cached token for [${accountKey}].`);
@@ -79,44 +81,36 @@ async function getAuthTokenForAccount(accountKey) {
     return await fetchNewToken(accountKey);
 }
 
-export function selectAccountByTime(meetingStartTime) {
-    if (!meetingStartTime) {
-        return 'default';
-    }
-
-    const date = new Date(meetingStartTime);
-    const hour = date.getHours(); // 0-23
-    const day = date.getDay();   // 0=Sunday, 6=Saturday
-
-    if (day === 0 || day === 6) {
-        console.log(`Selecting [weekend] account for date: ${date.toLocaleString()}`);
-        return 'weekend';
-    }
-    // After 5 PM (17:00) or before 9 AM (09:00) on a weekday
-    if (hour >= 17 || hour < 9) {
-        console.log(`Selecting [afterHours] account for date: ${date.toLocaleString()}`);
-        return 'afterHours';
-    }
-
-    console.log(`Selecting [default] account for date: ${date.toLocaleString()}`);
-    return 'default';
-}
-
-export const injectZoomToken = async (req, res, next) => {
-    // The meeting start time is the primary signal for account selection.
-    // It's in `req.body` for POST/PATCH requests.
-    const meetingTime = req.body?.start_time;
-
-    const accountKey = selectAccountByTime(meetingTime);
+export async function listMeetingsForAccount(accountKey) {
     const token = await getAuthTokenForAccount(accountKey);
-
-    if (token) {
-        req.zoomToken = token; // Attach the token to the request object
-        next(); // Proceed to the actual route handler
-    } else {
-        res.status(500).json({ error: `Failed to retrieve Zoom token for account: ${accountKey}` });
+    if (!token) {
+        console.error(`Could not get token for account ${accountKey} to list meetings.`);
+        return null; // Null if can't get a token
     }
-};
 
-// Simple token endpoint for potential generic use or testing.
-export const getDefaultToken = () => getAuthTokenForAccount('default');
+    let allMeetings = [];
+    let nextPageToken = null;
+
+    try {
+        do {
+            const response = await axios.get('https://api.zoom.us/v2/users/me/meetings', {
+                headers: { 'Authorization': `Bearer ${token}` },
+                params: {
+                    type: 'scheduled',
+                    page_size: 300,
+                    next_page_token: nextPageToken,
+                },
+            });
+            const { meetings, next_page_token } = response.data;
+            if (meetings) {
+                allMeetings = allMeetings.concat(meetings);
+            }
+            nextPageToken = next_page_token;
+        } while (nextPageToken);
+
+        return allMeetings;
+    } catch (error) {
+        console.error(`❌ Error listing meetings for account [${accountKey}]:`, error.response ? error.response.data : error.message);
+        return null; // Return null on API error
+    }
+}

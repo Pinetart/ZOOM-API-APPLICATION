@@ -3,11 +3,26 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
+
+// --- Reusable Badge Component ---
+const AccountBadge = ({ accountKey }) => {
+    // If for some reason a meeting doesn't have an account key, render nothing.
+    if (!accountKey) return null;
+    return (
+        <span className={`account-badge account-${accountKey}`}>
+            {accountKey}
+        </span>
+    );
+};
+
 const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
     const navigate = useNavigate();
 
-    const handleRowClick = (id) => {
-        navigate(`/meeting/${id}`);
+    const handleRowClick = (meeting) => {
+        // navigate(`/meeting/${id}`);
+        navigate(`/meeting/${meeting.id}`, {
+            state: { account: meeting.account }
+        })
     };
 
     const handleActionClick = (e, callback) => {
@@ -28,7 +43,8 @@ const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
                 <table>
                     <thead>
                         <tr>
-                            <th style={{ minWidth: '390px' }}>Topic</th>
+                            <th style={{ minWidth: '290px' }}>Topic</th>
+                            <th>Account</th>
                             <th>Meeting ID</th>
                             <th style={{ minWidth: '170px' }}>Start Time</th>
                             <th>Duration</th>
@@ -41,13 +57,15 @@ const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
                                 <tr
                                     key={meeting.id}
                                     className="clickable-row"
-                                    onClick={() => handleRowClick(meeting.id)}
-                                    tabIndex="0" // Make row focusable
+                                    onClick={() => handleRowClick(meeting)}
+                                    tabIndex="0"
                                     onKeyPress={(e) => e.key === 'Enter' && handleRowClick(meeting.id)}
                                 >
-                                    {/* Add data-label attributes for mobile view */}
                                     <td data-label="Topic">
                                         {meeting.topic}
+                                    </td>
+                                    <td data-label="Account">
+                                        <AccountBadge accountKey={meeting.account} />
                                     </td>
                                     <td data-label="Meeting ID">
                                         {meeting.id}
@@ -69,7 +87,7 @@ const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="5">
+                                <td colSpan="6">
                                     <p className="no-meetings-msg">No scheduled meetings found.</p>
                                 </td>
                             </tr>
@@ -81,7 +99,7 @@ const MeetingDashboard = ({ meetings, onEdit, onDelete, onCreate }) => {
     );
 };
 
-// Prop types for better component API and error checking
+
 MeetingDashboard.propTypes = {
     meetings: PropTypes.arrayOf(PropTypes.shape({
         id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
@@ -89,6 +107,7 @@ MeetingDashboard.propTypes = {
         start_time: PropTypes.string.isRequired,
         duration: PropTypes.number.isRequired,
         join_url: PropTypes.string.isRequired,
+        account: PropTypes.string,
     })).isRequired,
     onEdit: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired,
@@ -96,4 +115,3 @@ MeetingDashboard.propTypes = {
 };
 
 export default MeetingDashboard;
-

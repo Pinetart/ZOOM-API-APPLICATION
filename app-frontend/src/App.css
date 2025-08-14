@@ -456,3 +456,62 @@ td .btn:last-child {
     display: inline;
   }
 }
+
+.meeting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.meeting-details {
+  display: flex;
+  flex-direction: column;
+}
+
+/* .meeting-topic {
+  font-weight: bold;
+  font-size: 1.1em;
+} */
+
+.meeting-time {
+  color: #555;
+  font-size: 0.9em;
+}
+
+.account-badge {
+  padding: 4px 10px;
+  border-radius: 15px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: white;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.account-default {
+  background-color: #007bff;
+}
+
+.account-secondary {
+  background-color: #28a745;
+}
+
+.account-tertiary {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.error-message {
+  color: #dc3545;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 10px;
+}

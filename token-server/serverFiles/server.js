@@ -1,7 +1,11 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import { injectZoomToken, getDefaultToken } from './zoomAuth.js';
+import {
+    accountKeys,
+    getAuthTokenForAccount,
+    listMeetingsForAccount
+} from './zoomAuth.js';
 import { sendSnsNotification } from '../emailService/awsEmailService.js';
 
 const app = express();
@@ -18,52 +22,130 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- ROUTES ---
+// --- Overlap Detection ---
+function meetingsOverlap(newMeeting, existingMeeting) {
+    const newStart = new Date(newMeeting.start_time).getTime();
+    const newEnd = newStart + newMeeting.duration * 60 * 1000;
 
-// A simple endpoint to get the default token, if needed.
-app.get('/api/token', async (req, res) => {
-    console.log("Received request for default Zoom token...");
-    const token = await getDefaultToken();
-    if (token) {
-        res.json({ token });
+    const existingStart = new Date(existingMeeting.start_time).getTime();
+    const existingEnd = existingStart + existingMeeting.duration * 60 * 1000;
+
+    // Overlap exists if one meeting starts before the other one ends
+    return newStart < existingEnd && existingStart < newEnd;
+}
+
+const injectDefaultToken = async (req, res, next) => {
+    req.zoomToken = await getAuthTokenForAccount('default');
+    if (req.zoomToken) {
+        next();
     } else {
         res.status(500).json({ error: 'Failed to retrieve default Zoom token' });
     }
-});
+};
 
-// For listing meetings, the middleware will use the 'default' account token
-app.get('/users/me/meetings', injectZoomToken, async (req, res) => {
+// --- ROUTES ---
+
+// List meetings for all accounts.
+app.get('/users/me/meetings', async (req, res) => {
+    console.log("Fetching meetings from all configured accounts...");
+
     try {
-        const response = await axios.get('https://api.zoom.us/v2/users/me/meetings', {
-            headers: { 'Authorization': `Bearer ${req.zoomToken}` }, // Use the injected token
-            params: req.query
+        const promises = accountKeys.map(async (key) => {
+            const meetings = await listMeetingsForAccount(key);
+            if (meetings) {
+                return meetings.map(meeting => ({
+                    ...meeting,
+                    account: key
+                }));
+            }
+            return []; 
         });
-        res.json(response.data);
-    } catch (error) {
-        console.error(error.response?.data || error.message);
-        res.status(error.response?.status || 500).json({ error: 'Failed to retrieve meetings' });
-    }
-});
 
-// For creating a meeting, the middleware will select an account based on req.body.start_time
-app.post('/users/me/meetings', injectZoomToken, async (req, res) => {
-    try {
-        const response = await axios.post('https://api.zoom.us/v2/users/me/meetings', req.body, {
-            headers: {
-                'Authorization': `Bearer ${req.zoomToken}`, // Use the injected token
-                'Content-Type': 'application/json'
+        const results = await Promise.allSettled(promises);
+
+        let allMeetings = [];
+        results.forEach(result => {
+            if (result.status === 'fulfilled' && result.value) {
+                allMeetings = allMeetings.concat(result.value);
+            } else if (result.status === 'rejected') {
+                console.error("A promise to fetch meetings failed:", result.reason);
             }
         });
-        sendSnsNotification(response.data, false); // Email Notification
-        res.status(201).json(response.data);
+
+        allMeetings.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+        res.json({ meetings: allMeetings });
+
     } catch (error) {
-        console.error(error.response?.data || error.message);
-        res.status(error.response?.status || 500).json({ error: 'Failed to create meeting' });
+        console.error("❌ Critical error while aggregating meetings:", error);
+        res.status(500).json({ error: 'Failed to retrieve and combine meetings from all accounts' });
     }
 });
 
+
+// Create Meeting - Conflict Resolution
+app.post('/users/me/meetings', async (req, res) => {
+    const newMeetingDetails = req.body;
+
+    if (!newMeetingDetails.start_time || !newMeetingDetails.duration) {
+        return res.status(400).json({ error: 'start_time and duration are required to check for conflicts.' });
+    }
+
+    // Loop through our accounts in the specified order
+    for (const accountKey of accountKeys) {
+        console.log(`\n--- Checking availability for account: [${accountKey}] ---`);
+
+        const existingMeetings = await listMeetingsForAccount(accountKey);
+
+        if (existingMeetings === null) {
+            console.warn(`⚠️ Could not fetch meetings for [${accountKey}]. Skipping this account.`);
+            continue; // Try the next account
+        }
+
+        const hasConflict = existingMeetings.some(existingMeeting =>
+            meetingsOverlap(newMeetingDetails, existingMeeting)
+        );
+
+        if (hasConflict) {
+            console.log(`[${accountKey}] has a scheduling conflict. Trying next account...`);
+            continue; // Conflict found, so try the next account in the loop
+        }
+
+        // No conflict! Book the meeting with this account.
+        console.log(`✅ No conflict found for [${accountKey}]. Attempting to book meeting...`);
+        const token = await getAuthTokenForAccount(accountKey);
+        if (!token) {
+            console.error(`Could not get token for [${accountKey}] even though it was available. Skipping.`);
+            continue;
+        }
+
+        try {
+            const response = await axios.post('https://api.zoom.us/v2/users/me/meetings', newMeetingDetails, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(`✅ Meeting successfully booked on account [${accountKey}]!`);
+            sendSnsNotification(response.data, false); //Email Notification
+            return res.status(201).json(response.data);
+        } catch (error) {
+            console.error(`❌ Failed to create meeting on [${accountKey}] even with no conflict.`, error.response?.data || error.message);
+            // Miscellaneous errors
+        }
+    }
+
+    // If the loop completes, all accounts were busy or had errors.
+    console.log("--- All accounts checked. No availability found. ---");
+    res.status(409).json({
+        error: 'All available accounts are busy at the selected time. Please choose a different time.'
+    });
+});
+
+
 // All routes below that operate on a specific meetingId will use the default token.
-app.use('/meetings/:meetingId', injectZoomToken);
+app.use('/meetings/:meetingId', injectDefaultToken);
 
 app.get('/meetings/:meetingId', async (req, res) => {
     try {
@@ -110,5 +192,5 @@ app.delete('/meetings/:meetingId', async (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`✅ Multi-account backend server listening at http://localhost:${port}`);
+    console.log(`✅ Conflict-aware backend server listening at http://localhost:${port}`);
 });

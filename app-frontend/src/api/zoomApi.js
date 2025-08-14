@@ -2,35 +2,51 @@ import axios from 'axios';
 
 const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'http://localhost:3001';
 
+// export async function listAllMeetings() {
+//     let allMeetings = [];
+//     let nextPageToken = null;
+
+//     try {
+//         do {
+//             const response = await axios({
+//                 method: 'GET',
+//                 url: `${BACKEND_API_URL}/users/me/meetings`,
+//                 params: {
+//                     type: 'scheduled',
+//                     page_size: 300,
+//                     next_page_token: nextPageToken
+//                 }
+//             });
+
+//             const { meetings, next_page_token } = response.data;
+//             if (meetings) {
+//                 allMeetings = allMeetings.concat(meetings);
+//             }
+//             nextPageToken = next_page_token;
+//         } while (nextPageToken);
+
+//         return allMeetings;
+//     } catch (error) {
+//         console.error("❌ Error listing meetings:", error.response ? error.response.data : error.message);
+//         throw error;
+//     }
+// }
+
 export async function listAllMeetings() {
-    let allMeetings = [];
-    let nextPageToken = null;
-
     try {
-        do {
-            const response = await axios({
-                method: 'GET',
-                url: `${BACKEND_API_URL}/users/me/meetings`,
-                params: {
-                    type: 'scheduled',
-                    page_size: 300,
-                    next_page_token: nextPageToken
-                }
-            });
+        const response = await axios({
+            method: 'GET',
+            url: `${BACKEND_API_URL}/users/me/meetings`,
+        });
 
-            const { meetings, next_page_token } = response.data;
-            if (meetings) {
-                allMeetings = allMeetings.concat(meetings);
-            }
-            nextPageToken = next_page_token;
-        } while (nextPageToken);
+        return response.data.meetings || [];
 
-        return allMeetings;
     } catch (error) {
-        console.error("❌ Error listing meetings:", error.response ? error.response.data : error.message);
+        console.error("❌ Error listing all meetings:", error.response ? error.response.data : error.message);
         throw error;
     }
 }
+
 
 export async function deleteMeeting(meetingId) {
     try {

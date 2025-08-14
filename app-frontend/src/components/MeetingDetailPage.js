@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getMeetingDetails } from '../api/zoomApi';
 import { format } from 'date-fns';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 
+const AccountBadge = ({ accountKey }) => {
+    if (!accountKey) return null;
+    return (
+        <span className={`account-badge account-${accountKey}`}>
+            {accountKey}
+        </span>
+    );
+};
+
 const MeetingDetailPage = ({ onDelete, onEdit }) => {
-    const { meetingId } = useParams(); 
+    const { meetingId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [meeting, setMeeting] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -18,13 +28,19 @@ const MeetingDetailPage = ({ onDelete, onEdit }) => {
             setIsLoading(true);
             setError(null);
             const data = await getMeetingDetails(meetingId);
-            setMeeting(data);
+
+            const meetingDataWithAccount = {
+                ...data,
+                account: location.state?.account, 
+            };
+
+            setMeeting(meetingDataWithAccount);
         } catch (err) {
             setError(`Failed to load meeting ${meetingId}. It may have been deleted or the ID is incorrect.`);
         } finally {
             setIsLoading(false);
         }
-    }, [meetingId]);
+    }, [meetingId, location.state]); 
 
     useEffect(() => {
         fetchMeeting();
@@ -44,7 +60,10 @@ const MeetingDetailPage = ({ onDelete, onEdit }) => {
             <header className="detail-page-header">
                 <div>
                     <h1 className="meeting-topic">{meeting.topic}</h1>
-                    <span className="meeting-id">Meeting ID: {meeting.id}</span>
+                    <div className="header-meta">
+                        <AccountBadge accountKey={meeting.account} />
+                        <span className="meeting-id">Meeting ID: {meeting.id}</span>
+                    </div>
                 </div>
                 <div className="detail-page-actions">
                     <button className="btn btn-info" onClick={() => onEdit(meeting)}>Edit</button>
